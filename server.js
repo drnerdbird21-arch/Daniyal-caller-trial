@@ -43,4 +43,27 @@ app.post("/call/inbound", async (req, res) => {
 
 app.post("/call/respond", async (req, res) => {
   const callSid = req.body.CallSid;
-  con
+  const userSpeech = req.body.SpeechResult || "";
+  console.log("Caller said:", userSpeech);
+  const twiml = new twilio.twiml.VoiceResponse();
+  if (!userSpeech) {
+    twiml.say({ voice: "Polly.Joanna" }, "I'm sorry, I didn't catch that. Could you please repeat?");
+    twiml.gather({ input: "speech", action: `${process.env.BASE_URL}/call/respond`, speechTimeout: "auto", language: "en-IN" });
+    return res.type("text/xml").send(twiml.toString());
+  }
+  const reply = await getAIResponse(callSid, userSpeech);
+  console.log("AI replied:", reply);
+  twiml.say({ voice: "Polly.Joanna" }, reply);
+  const shouldEnd = reply.toLowerCase().includes("great day") || reply.toLowerCase().includes("jazakallah") || reply.toLowerCase().includes("goodbye");
+  if (shouldEnd) {
+    twiml.hangup();
+  } else {
+    twiml.gather({ input: "speech", action: `${process.env.BASE_URL}/call/respond`, speechTimeout: "auto", language: "en-IN" });
+  }
+  res.type("text/xml").send(twiml.toString());
+});
+
+app.get("/leads", (req, res) => res.json({ total: leads.length, leads }));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("The A Team AI Caller running on port", PORT));
