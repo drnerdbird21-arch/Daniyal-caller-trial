@@ -2,14 +2,14 @@
  * The A Team AI Caller — Backend Server
  * Real Estate · Al-Jalil Gardens, Lahore
  *
- * Powered by: Twilio + ElevenLabs + Claude AI
+ * Powered by: Twilio + ElevenLabs + Groq AI
  * Deploy to: Railway.app
  */
 
 require("dotenv").config();
 const express = require("express");
 const twilio = require("twilio");
-const Anthropic = require("@anthropic-ai/sdk");
+const Groq = require("groq-sdk");
 const { ElevenLabsClient } = require("elevenlabs");
 const fs = require("fs");
 const path = require("path");
@@ -24,7 +24,7 @@ const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
 );
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const elevenlabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
 
 // ─── In-memory store (replace with a DB later if needed) ─────────────────────
@@ -84,14 +84,16 @@ async function getAIResponse(callSid, userMessage) {
   const session = callSessions[callSid];
   session.history.push({ role: "user", content: userMessage });
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+  const response = await groq.chat.completions.create({
+    model: "llama3-70b-8192",
     max_tokens: 200,
-    system: SYSTEM_PROMPT,
-    messages: session.history,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...session.history,
+    ],
   });
 
-  const reply = response.content[0].text;
+  const reply = response.choices[0].message.content;
   session.history.push({ role: "assistant", content: reply });
 
   // Try to extract lead data from conversation
@@ -108,15 +110,16 @@ async function extractLeadData(callSid, history) {
   const convo = history.map((m) => `${m.role}: ${m.content}`).join("\n");
 
   try {
-    const extraction = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+    const extraction = await groq.chat.completions.create({
+      model: "llama3-70b-8192",
       max_tokens: 200,
-      system:
-        'Extract caller name, interest (plot size/type), and any other info from this conversation. Reply ONLY in JSON like: {"name":"...","interest":"...","notes":"..."}. Use null for missing fields.',
-      messages: [{ role: "user", content: convo }],
+      messages: [
+        { role: "system", content: 'Extract caller name, interest (plot size/type), and any other info from this conversation. Reply ONLY in JSON like: {"name":"...","interest":"...","notes":"..."}. Use null for missing fields.' },
+        { role: "user", content: convo },
+      ],
     });
 
-    const raw = extraction.content[0].text;
+    const raw = extraction.choices[0].message.content;
     const cleaned = raw.replace(/```json|```/g, "").trim();
     const data = JSON.parse(cleaned);
 
