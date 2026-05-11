@@ -24,7 +24,7 @@ const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
 );
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const groq = new Groq({ apiKey: "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" });
 const elevenlabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
 
 // ─── In-memory store (replace with a DB later if needed) ─────────────────────
